@@ -1363,162 +1363,178 @@ exec_command(const char *cmd,
 		free(envval);
 	}
 
-	/* \sf -- show a function's source code */
-	else if (strcmp(cmd, "sf") == 0 || strcmp(cmd, "sf+") == 0)
+	/* \s* commands */
+	else if (cmd[0] == 's')
 	{
-		bool		show_linenumbers = (strcmp(cmd, "sf+") == 0);
-		PQExpBuffer func_buf;
-		char	   *func;
-		Oid			foid = InvalidOid;
+		bool		show_linenumbers;
 
-		func_buf = createPQExpBuffer();
-		func = psql_scan_slash_option(scan_state,
-									  OT_WHOLE_LINE, NULL, true);
-		if (pset.sversion < 80400)
-		{
-			char		sverbuf[32];
+		show_linenumbers = strchr(cmd, '+') ? true : false;
 
-			psql_error("The server (version %s) does not support showing function source.\n",
-					   formatPGVersionNumber(pset.sversion, false,
-											 sverbuf, sizeof(sverbuf)));
-			status = PSQL_CMD_ERROR;
-		}
-		else if (!func)
+		switch (cmd[1])
 		{
-			psql_error("function name is required\n");
-			status = PSQL_CMD_ERROR;
-		}
-		else if (!lookup_object_oid(EditableFunction, func, &foid))
-		{
-			/* error already reported */
-			status = PSQL_CMD_ERROR;
-		}
-		else if (!get_create_object_cmd(EditableFunction, foid, func_buf))
-		{
-			/* error already reported */
-			status = PSQL_CMD_ERROR;
-		}
-		else
-		{
-			FILE	   *output;
-			bool		is_pager;
+			case 'f': /* \sf -- show a function's source code */
+				{
+					PQExpBuffer func_buf;
+					char	   *func;
+					Oid			foid = InvalidOid;
 
-			/* Select output stream: stdout, pager, or file */
-			if (pset.queryFout == stdout)
+					func_buf = createPQExpBuffer();
+					func = psql_scan_slash_option(scan_state,
+												  OT_WHOLE_LINE, NULL, true);
+					if (pset.sversion < 80400)
+					{
+						char		sverbuf[32];
+
+						psql_error("The server (version %s) does not support showing function source.\n",
+								   formatPGVersionNumber(pset.sversion, false,
+														 sverbuf,
+														 sizeof(sverbuf)));
+						status = PSQL_CMD_ERROR;
+					}
+					else if (!func)
+					{
+						psql_error("function name is required\n");
+						status = PSQL_CMD_ERROR;
+					}
+					else if (!lookup_object_oid(EditableFunction, func, &foid))
+					{
+						/* error already reported */
+						status = PSQL_CMD_ERROR;
+					}
+					else if (!get_create_object_cmd(EditableFunction, foid,
+							 func_buf))
+					{
+						/* error already reported */
+						status = PSQL_CMD_ERROR;
+					}
+					else
+					{
+						FILE	   *output;
+						bool		is_pager;
+
+						/* Select output stream: stdout, pager, or file */
+						if (pset.queryFout == stdout)
+						{
+							/*
+							 * count lines in function to see if pager is
+							 * needed
+							 */
+							int			lineno = count_lines_in_buf(func_buf);
+
+							output = PageOutput(lineno, &(pset.popt.topt));
+							is_pager = true;
+						}
+						else
+						{
+							/* use previously set output file, without pager */
+							output = pset.queryFout;
+							is_pager = false;
+						}
+
+						if (show_linenumbers)
+						{
+							/*
+							 * lineno "1" should correspond to the first line
+							 * of the function body.  We expect that
+							 * pg_get_functiondef() will emit that on a line
+							 * beginning with "AS ", and that there can be no
+							 * such line before the real start of the function
+							 * body.
+							 */
+							print_with_linenumbers(output, func_buf->data,
+												   "AS ");
+						}
+						else
+						{
+							/* just send the function definition to output */
+							fputs(func_buf->data, output);
+						}
+
+						if (is_pager)
+							ClosePager(output);
+					}
+
+					if (func)
+						free(func);
+					destroyPQExpBuffer(func_buf);
+				}
+				break;
+
+			case 'v': /* \sv -- show a view's source code */
 			{
-				/* count lines in function to see if pager is needed */
-				int			lineno = count_lines_in_buf(func_buf);
+				PQExpBuffer view_buf;
+				char	   *view;
+				Oid			view_oid = InvalidOid;
 
-				output = PageOutput(lineno, &(pset.popt.topt));
-				is_pager = true;
-			}
-			else
-			{
-				/* use previously set output file, without pager */
-				output = pset.queryFout;
-				is_pager = false;
-			}
+				view_buf = createPQExpBuffer();
+				view = psql_scan_slash_option(scan_state,
+											  OT_WHOLE_LINE, NULL, true);
+				if (pset.sversion < 70400)
+				{
+					char		sverbuf[32];
 
-			if (show_linenumbers)
-			{
-				/*
-				 * lineno "1" should correspond to the first line of the
-				 * function body.  We expect that pg_get_functiondef() will
-				 * emit that on a line beginning with "AS ", and that there
-				 * can be no such line before the real start of the function
-				 * body.
-				 */
-				print_with_linenumbers(output, func_buf->data, "AS ");
-			}
-			else
-			{
-				/* just send the function definition to output */
-				fputs(func_buf->data, output);
-			}
+					psql_error("The server (version %s) does not support showing view definitions.\n",
+							   formatPGVersionNumber(pset.sversion, false,
+													 sverbuf, sizeof(sverbuf)));
+					status = PSQL_CMD_ERROR;
+				}
+				else if (!view)
+				{
+					psql_error("view name is required\n");
+					status = PSQL_CMD_ERROR;
+				}
+				else if (!lookup_object_oid(EditableView, view, &view_oid))
+				{
+					/* error already reported */
+					status = PSQL_CMD_ERROR;
+				}
+				else if (!get_create_object_cmd(EditableView, view_oid,
+						 view_buf))
+				{
+					/* error already reported */
+					status = PSQL_CMD_ERROR;
+				}
+				else
+				{
+					FILE	   *output;
+					bool		is_pager;
 
-			if (is_pager)
-				ClosePager(output);
+					/* Select output stream: stdout, pager, or file */
+					if (pset.queryFout == stdout)
+					{
+						/* count lines in view to see if pager is needed */
+						int			lineno = count_lines_in_buf(view_buf);
+
+						output = PageOutput(lineno, &(pset.popt.topt));
+						is_pager = true;
+					}
+					else
+					{
+						/* use previously set output file, without pager */
+						output = pset.queryFout;
+						is_pager = false;
+					}
+
+					if (show_linenumbers)
+					{
+						/* add line numbers, numbering all lines */
+						print_with_linenumbers(output, view_buf->data, NULL);
+					}
+					else
+					{
+						/* just send the view definition to output */
+						fputs(view_buf->data, output);
+					}
+
+					if (is_pager)
+						ClosePager(output);
+				}
+
+				if (view)
+					free(view);
+				destroyPQExpBuffer(view_buf);
+			}
 		}
-
-		if (func)
-			free(func);
-		destroyPQExpBuffer(func_buf);
-	}
-
-	/* \sv -- show a view's source code */
-	else if (strcmp(cmd, "sv") == 0 || strcmp(cmd, "sv+") == 0)
-	{
-		bool		show_linenumbers = (strcmp(cmd, "sv+") == 0);
-		PQExpBuffer view_buf;
-		char	   *view;
-		Oid			view_oid = InvalidOid;
-
-		view_buf = createPQExpBuffer();
-		view = psql_scan_slash_option(scan_state,
-									  OT_WHOLE_LINE, NULL, true);
-		if (pset.sversion < 70400)
-		{
-			char		sverbuf[32];
-
-			psql_error("The server (version %s) does not support showing view definitions.\n",
-					   formatPGVersionNumber(pset.sversion, false,
-											 sverbuf, sizeof(sverbuf)));
-			status = PSQL_CMD_ERROR;
-		}
-		else if (!view)
-		{
-			psql_error("view name is required\n");
-			status = PSQL_CMD_ERROR;
-		}
-		else if (!lookup_object_oid(EditableView, view, &view_oid))
-		{
-			/* error already reported */
-			status = PSQL_CMD_ERROR;
-		}
-		else if (!get_create_object_cmd(EditableView, view_oid, view_buf))
-		{
-			/* error already reported */
-			status = PSQL_CMD_ERROR;
-		}
-		else
-		{
-			FILE	   *output;
-			bool		is_pager;
-
-			/* Select output stream: stdout, pager, or file */
-			if (pset.queryFout == stdout)
-			{
-				/* count lines in view to see if pager is needed */
-				int			lineno = count_lines_in_buf(view_buf);
-
-				output = PageOutput(lineno, &(pset.popt.topt));
-				is_pager = true;
-			}
-			else
-			{
-				/* use previously set output file, without pager */
-				output = pset.queryFout;
-				is_pager = false;
-			}
-
-			if (show_linenumbers)
-			{
-				/* add line numbers, numbering all lines */
-				print_with_linenumbers(output, view_buf->data, NULL);
-			}
-			else
-			{
-				/* just send the view definition to output */
-				fputs(view_buf->data, output);
-			}
-
-			if (is_pager)
-				ClosePager(output);
-		}
-
-		if (view)
-			free(view);
-		destroyPQExpBuffer(view_buf);
 	}
 
 	/* \t -- turn off headers and row count */
