@@ -1372,6 +1372,36 @@ exec_command(const char *cmd,
 
 		switch (cmd[1])
 		{
+			case 'a': /* \sa -- show database activity */
+				status = listActivity();
+				{
+					PQExpBufferData buf;
+					PGresult   *res;
+					printQueryOpt myopt = pset.popt;
+					initPQExpBuffer(&buf);
+					printfPQExpBuffer(&buf,
+									  "SELECT"
+									  " pid"
+									  ", usename"
+									  ", age(CURRENT_TIMESTAMP, xact_start) AS xact_start"
+									  ", age(CURRENT_TIMESTAMP, query_start) AS query_start"
+									  ", waiting"
+									  ", state"
+									  ", CASE WHEN state = 'active' THEN query ELSE NULL END AS query"
+									  " FROM pg_stat_activity"
+									  " WHERE datname = current_database()"
+									  " AND pid <> pg_backend_pid()"
+									  " ORDER BY pid");
+					res = PSQLexec(buf.data);
+					termPQExpBuffer(&buf);
+					if (PQntuples(res) == 0 && !pset.quiet)
+						fprintf(pset.queryFout, _("No activity found.\n"));
+					else
+						printQuery(res, &myopt, pset.queryFout, false,
+								   pset.logfile);
+					PQclear(res);
+				}
+				break;
 			case 'f': /* \sf -- show a function's source code */
 				{
 					PQExpBuffer func_buf;

@@ -250,6 +250,7 @@ slashUsage(unsigned short int pager)
 	fprintf(output, _("  \\dx[+]  [PATTERN]      list extensions\n"));
 	fprintf(output, _("  \\dy     [PATTERN]      list event triggers\n"));
 	fprintf(output, _("  \\l[+]   [PATTERN]      list databases\n"));
+	fprintf(output, _("  \\sa                    show database activity\n"));
 	fprintf(output, _("  \\sf[+]  FUNCNAME       show a function's definition\n"));
 	fprintf(output, _("  \\sv[+]  VIEWNAME       show a view's definition\n"));
 	fprintf(output, _("  \\z      [PATTERN]      same as \\dp\n"));
