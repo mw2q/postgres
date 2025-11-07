@@ -26,10 +26,6 @@ DROP ROLE regress_datdba_after;
 -- Create a specific role to test
 CREATE ROLE regress_ddl_database WITH SUPERUSER;
 CREATE DATABASE "regression_get_database_ddl"
-    OWNER regress_ddl_database ENCODING 'UTF8' LC_COLLATE "C" LC_CTYPE "C"
-    TEMPLATE template0;
--- Test LOCAL_PROVIDER and BUILTIN_LOCALE for builtin type
-CREATE DATABASE "regression_get_database_ddl_builtin"
     OWNER regress_ddl_database TEMPLATE template0 ENCODING 'UTF8'
     LC_COLLATE "C" LC_CTYPE "C"
     BUILTIN_LOCALE 'C.UTF-8' LOCALE_PROVIDER 'builtin';
@@ -37,6 +33,7 @@ CREATE DATABASE "regression_get_database_ddl_builtin"
 CREATE DATABASE "regression_get_database_ddl_conn"
     OWNER regress_ddl_database TEMPLATE template0 ENCODING 'UTF8'
     LC_COLLATE "C" LC_CTYPE "C"
+    BUILTIN_LOCALE 'C.UTF-8' LOCALE_PROVIDER 'builtin'
     ALLOW_CONNECTIONS 0 CONNECTION LIMIT 50;
 
 -- Database doesn't exists
@@ -47,17 +44,14 @@ SELECT pg_get_database_ddl(NULL);
 
 -- Without Pretty formatted
 SELECT pg_get_database_ddl('regression_get_database_ddl');
-SELECT pg_get_database_ddl('regression_get_database_ddl_builtin');
 SELECT pg_get_database_ddl('regression_get_database_ddl_conn', false);
 
 -- With Pretty formatted
 \pset format unaligned
 SELECT pg_get_database_ddl('regression_get_database_ddl', true);
-SELECT pg_get_database_ddl('regression_get_database_ddl_builtin', true);
 SELECT pg_get_database_ddl('regression_get_database_ddl_conn', true);
 
 -- Clean up
 DROP DATABASE "regression_get_database_ddl";
-DROP DATABASE "regression_get_database_ddl_builtin";
 DROP DATABASE "regression_get_database_ddl_conn";
 DROP ROLE regress_ddl_database;
